@@ -1,0 +1,117 @@
+# Claude Code - protect config but track agents, skills, rules, hooks
+/.claude/*
+!/.claude/settings.json
+!/.claude/agents/
+!/.claude/skills/
+!/.claude/rules/
+!/.claude/hooks/
+
+# Local settings (never commit)
+.claude/settings.local.json
+.claude/transcripts/
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+uv.lock
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Environment files (never commit)
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+backend.hcl
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+postgres-data/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Test coverage / reports
+coverage/
+.nyc_output/
+junit.xml
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Secrets (patterns)
+*.pem
+*.key
+*.crt
+*.cert
+*secret*
+*password*
+*token*
+*.kubeconfig
+
+# Local development
+.local/
+*.local

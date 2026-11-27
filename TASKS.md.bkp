@@ -1,0 +1,200 @@
+# TASKS.md - Sub-task, Branch Name, Predecessor
+
+## Phase 0: Foundation (Weeks 1-4)
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 0.1 | Terraform modules: Kubernetes, PostgreSQL, Redis, Vector DB, Kafka, Object Storage | `feature/infra-terraform-modules` | — | ⬜ Pending |
+| 0.2 | CI/CD pipelines: build, test, security scan, staging deploy | `feature/ci-cd-pipelines` | 0.1 | ⬜ Pending |
+| 0.3 | PostgreSQL schema: tables, RLS policies, pgvector extension, indexes | `feature/db-schema-rls` | 0.1 | ⬜ Pending |
+| 0.4 | SQLAlchemy 2.0 async models + Alembic migrations | `feature/sqlalchemy-models` | 0.3 | ⬜ Pending |
+| 0.5 | OpenAPI 3.1 specification for all endpoints | `feature/openapi-spec` | 0.2 | ⬜ Pending |
+| 0.6 | Ingestion service: channel adapters (Email, Chat, Zendesk, Intercom, In-App) | `feature/ingestion-adapters` | 0.4 | ⬜ Pending |
+| 0.7 | Ingestion normalization to `SupportRequest` schema | `feature/ingestion-normalization` | 0.6 | ⬜ Pending |
+| 0.8 | Multi-channel deduplication logic | `feature/ingestion-dedup` | 0.7 | ⬜ Pending |
+| 0.9 | Kafka topics, retention, consumer groups | `feature/kafka-topics` | 0.1 | ⬜ Pending |
+| 0.10 | Integration test: ingestion → Kafka → consumer round-trip | `feature/ingestion-e2e-test` | 0.8, 0.9 | ⬜ Pending |
+| 0.11 | Load test: 1000 req/sec ingestion | `feature/ingestion-load-test` | 0.10 | ⬜ Pending |
+| 0.12 | Security test: penetration test on ingestion endpoints | `feature/ingestion-security-test` | 0.10 | ⬜ Pending |
+
+## Phase 1: Core Agents (Weeks 5-10)
+
+### Week 5: Supervisor + Customer Agents
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 1.1 | LangGraph StateGraph with `SupportState` schema | `feature/langgraph-state` | 0.12 | ⬜ Pending |
+| 1.2 | SupervisorAgent node: routing logic | `feature/supervisor-routing` | 1.1 | ⬜ Pending |
+| 1.3 | CustomerAgent node: intent classification | `feature/customer-intent` | 1.1 | ⬜ Pending |
+| 1.4 | CustomerAgent node: entity extraction | `feature/customer-entities` | 1.3 | ⬜ Pending |
+| 1.5 | CustomerAgent node: sentiment scoring | `feature/customer-sentiment` | 1.3 | ⬜ Pending |
+| 1.6 | CustomerAgent tools: customer_lookup, subscription_info, usage_metrics | `feature/customer-tools` | 1.2 | ⬜ Pending |
+| 1.7 | Redis customer context cache (15min TTL) | `feature/customer-cache` | 1.6 | ⬜ Pending |
+| 1.8 | Supervisor conditional edges: default → knowledge, escalate on CRITICAL_P0/ENTERPRISE | `feature/supervisor-edges` | 1.2 | ⬜ Pending |
+| 1.9 | Unit tests: Supervisor routing, Customer classification (1000 examples) | `feature/week5-tests` | 1.7, 1.8 | ⬜ Pending |
+
+### Week 6: Knowledge/RAG Agent
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 1.10 | Vector search client (Pinecone/Weaviate/Qdrant) | `feature/vector-search` | 1.9 | ⬜ Pending |
+| 1.11 | BM25 search client (OpenSearch/PostgreSQL) | `feature/bm25-search` | 1.9 | ⬜ Pending |
+| 1.12 | Graph search (relationships) | `feature/graph-search` | 1.9 | ⬜ Pending |
+| 1.13 | Reciprocal Rank Fusion (RRF, k=60) | `feature/rrf-fusion` | 1.10, 1.11, 1.12 | ⬜ Pending |
+| 1.14 | Cross-encoder reranker (Cohere/BGE) | `feature/reranker` | 1.13 | ⬜ Pending |
+| 1.15 | Query decomposition for multi-part questions | `feature/query-decomposition` | 1.14 | ⬜ Pending |
+| 1.16 | Real-time indexer (<5min latency) | `feature/realtime-indexer` | 1.10 | ⬜ Pending |
+| 1.17 | Tenant-scoped namespaces + shared global corpus | `feature/tenant-namespaces` | 1.10 | ⬜ Pending |
+| 1.18 | KnowledgeAgent node with tools | `feature/knowledge-agent` | 1.15, 1.16, 1.17 | ⬜ Pending |
+| 1.19 | Unit tests: RRF correctness, reranker improvement, query decomposition | `feature/week6-tests` | 1.18 | ⬜ Pending |
+
+### Week 7: Troubleshooting Agent
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 1.20 | Diagnostic tools: api_health_check, config_validate, log_query, feature_flag_check | `feature/diagnostic-tools` | 1.19 | ⬜ Pending |
+| 1.21 | Structured troubleshooting flows (decision trees, YAML) for top 20 issues | `feature/troubleshooting-flows` | 1.20 | ⬜ Pending |
+| 1.22 | Known issues/incidents correlation database | `feature/incident-correlation` | 1.20 | ⬜ Pending |
+| 1.23 | Hypothesis generation ranked by probability | `feature/hypothesis-generation` | 1.21, 1.22 | ⬜ Pending |
+| 1.24 | TroubleshootingAgent node with tools | `feature/troubleshooting-agent` | 1.23 | ⬜ Pending |
+| 1.25 | Unit tests: diagnostic tools, decision trees, hypotheses | `feature/week7-tests` | 1.24 | ⬜ Pending |
+
+### Week 8: Resolution Agent
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 1.26 | Resolution plan generation: steps, outcomes, rollback | `feature/resolution-plan` | 1.25 | ⬜ Pending |
+| 1.27 | Autonomous vs Assisted vs Escalated differentiation | `feature/resolution-mode` | 1.26 | ⬜ Pending |
+| 1.28 | Customer response + agent notes generation | `feature/response-generation` | 1.26 | ⬜ Pending |
+| 1.29 | Confidence scoring calibration | `feature/confidence-scoring` | 1.27 | ⬜ Pending |
+| 1.30 | ResolutionAgent node with tools | `feature/resolution-agent` | 1.28, 1.29 | ⬜ Pending |
+| 1.31 | Unit tests: plan validation, confidence calibration, 50 test cases | `feature/week8-tests` | 1.30 | ⬜ Pending |
+
+### Week 9: Escalation Agent
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 1.32 | Escalation triggers: confidence<0.7, critical, enterprise, policy | `feature/escalation-triggers` | 1.31 | ⬜ Pending |
+| 1.33 | Context package builder: 360°, history, investigation, hypotheses, actions | `feature/escalation-context` | 1.32 | ⬜ Pending |
+| 1.34 | Routing: skills, load, timezone matching | `feature/escalation-routing` | 1.33 | ⬜ Pending |
+| 1.35 | SLA timer + alerts (50%/80%/100%) | `feature/escalation-sla` | 1.34 | ⬜ Pending |
+| 1.36 | Warm handoff: AI stays in loop | `feature/escalation-warm-handoff` | 1.35 | ⬜ Pending |
+| 1.37 | EscalationAgent node with tools | `feature/escalation-agent` | 1.36 | ⬜ Pending |
+| 1.38 | Unit tests: triggers, routing, 20 test cases | `feature/week9-tests` | 1.37 | ⬜ Pending |
+
+### Week 10: Integration & E2E Testing
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 1.39 | Compiled StateGraph with all agents | `feature/full-workflow` | 1.38 | ⬜ Pending |
+| 1.40 | Redis checkpointing for workflow state | `feature/workflow-checkpoints` | 1.39 | ⬜ Pending |
+| 1.41 | E2E test: 100 tickets ingestion → resolution/escalation | `feature/e2e-test` | 1.40 | ⬜ Pending |
+| 1.42 | Load test: 1000 concurrent sessions, 1000 req/sec | `feature/load-test` | 1.41 | ⬜ Pending |
+| 1.43 | Chaos test: agent failures, Kafka latency, DB failures | `feature/chaos-test` | 1.41 | ⬜ Pending |
+| 1.44 | Demo gates: TICKET=CD-1002 (approval), TICKET=CD-1005 (escalation) | `feature/demo-gates` | 1.42, 1.43 | ⬜ Pending |
+
+## Phase 2: Action & Memory (Weeks 11-14)
+
+### Week 11: Action Framework + Approval UI
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 2.1 | MCP ToolRegistry with 15+ tools | `feature/mcp-registry` | 1.44 | ⬜ Pending |
+| 2.2 | Risk levels: LOW/MEDIUM/HIGH/CRITICAL with approval gating | `feature/action-risk-levels` | 2.1 | ⬜ Pending |
+| 2.3 | Approval service: pending queue, context, risk assessment, rollback plan | `feature/approval-service` | 2.2 | ⬜ Pending |
+| 2.4 | Approval API: /approvals/pending, /actions/{id}/approve | `feature/approval-api` | 2.3 | ⬜ Pending |
+| 2.5 | Action execution with verification + compensation/rollback | `feature/action-execution` | 2.4 | ⬜ Pending |
+| 2.6 | Immutable audit logger | `feature/audit-logger` | 2.5 | ⬜ Pending |
+| 2.7 | Frontend: Approval queue UI (/approvals) | `feature/approval-ui` | 2.4 | ⬜ Pending |
+| 2.8 | Frontend: ActionApprovalCard component | `feature/action-approval-card` | 2.7 | ⬜ Pending |
+| 2.9 | Unit tests: MCP tools, approval gating, rollback, audit | `feature/week11-tests` | 2.6, 2.8 | ⬜ Pending |
+
+### Week 12: Memory System
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 2.10 | Short-term memory: Redis session:{ticket_id}:state (2hr TTL) | `feature/short-term-memory` | 2.9 | ⬜ Pending |
+| 2.11 | Episodic memory: resolved_cases with pgvector | `feature/episodic-memory` | 2.10 | ⬜ Pending |
+| 2.12 | Semantic memory: customer preferences in customers.metadata | `feature/semantic-memory` | 2.11 | ⬜ Pending |
+| 2.13 | Similarity search: recall_similar_cases() | `feature/similarity-search` | 2.11 | ⬜ Pending |
+| 2.14 | Pattern extraction: ≥5 similar in 30 days → KB draft | `feature/pattern-extraction` | 2.13 | ⬜ Pending |
+| 2.15 | Memory service API | `feature/memory-api` | 2.14 | ⬜ Pending |
+| 2.16 | Unit tests: checkpoint/restore, pgvector search, pattern detection | `feature/week12-tests` | 2.15 | ⬜ Pending |
+
+### Week 13: Agent Assist UI
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 2.17 | WebSocket: /api/v1/ws/tickets/{ticket_id} | `feature/websocket-stream` | 2.16 | ⬜ Pending |
+| 2.18 | ConversationThread component | `feature/conversation-thread` | 2.17 | ⬜ Pending |
+| 2.19 | AISuggestionPanel: response, actions, knowledge, similar cases | `feature/ai-suggestions` | 2.18 | ⬜ Pending |
+| 2.20 | One-click accept/edit/reject for suggestions | `feature/suggestion-actions` | 2.19 | ⬜ Pending |
+| 2.21 | Few-shot capture from agent corrections | `feature/fewshot-capture` | 2.20 | ⬜ Pending |
+| 2.22 | Real-time coaching: frustration detection | `feature/coaching` | 2.21 | ⬜ Pending |
+| 2.23 | Agent Assist page: /dashboard/tickets/[ticketId] | `feature/agent-assist-page` | 2.22 | ⬜ Pending |
+| 2.24 | Unit tests: WebSocket reconnect, <500ms render, E2E accept/edit | `feature/week13-tests` | 2.23 | ⬜ Pending |
+
+### Week 14: Analytics Dashboard
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 2.25 | Business KPI calculations: ARR, MTTR, CSAT, escalation rate, cost/ticket | `feature/kpi-calculations` | 2.24 | ⬜ Pending |
+| 2.26 | Analytics API: /analytics/overview, /tickets, /agents | `feature/analytics-api` | 2.25 | ⬜ Pending |
+| 2.27 | Drill-down filters: channel, category, agent, segment, time | `feature/drilldown-filters` | 2.26 | ⬜ Pending |
+| 2.28 | Cost savings calculator | `feature/cost-calculator` | 2.26 | ⬜ Pending |
+| 2.29 | Quality audit workflow | `feature/quality-audit` | 2.26 | ⬜ Pending |
+| 2.30 | Export: CSV, API, scheduled reports | `feature/analytics-export` | 2.26 | ⬜ Pending |
+| 2.31 | Dashboard UI: overview, ticket queue (Grid.js), approval queue | `feature/dashboard-ui` | 2.27 | ⬜ Pending |
+| 2.32 | Unit tests: metrics, filters, real-time updates | `feature/week14-tests` | 2.31 | ⬜ Pending |
+
+## Phase 3: Hardening & Launch (Weeks 15-16)
+
+### Week 15: Security Audit & Penetration Testing
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 3.1 | Third-party penetration test | `feature/pen-test` | 2.32 | ⬜ Pending |
+| 3.2 | SAST/DAST/SCA in CI | `feature/security-scanning` | 3.1 | ⬜ Pending |
+| 3.3 | Remediate critical/high findings | `feature/sec-remediation` | 3.2 | ⬜ Pending |
+| 3.4 | Compliance evidence: GDPR, CCPA, SOC 2, HIPAA (optional) | `feature/compliance-evidence` | 3.3 | ⬜ Pending |
+| 3.5 | Vault secrets rotation, no secrets in code/images | `feature/secrets-management` | 3.4 | ⬜ Pending |
+
+### Week 16: Production Launch & Monitoring
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 3.6 | Staging deployed with anonymized production data | `feature/staging-deploy` | 3.5 | ⬜ Pending |
+| 3.7 | Runbooks: incident response, rollback, scaling | `feature/runbooks` | 3.6 | ⬜ Pending |
+| 3.8 | Customer onboarding guide | `feature/onboarding-guide` | 3.6 | ⬜ Pending |
+| 3.9 | Monitoring: Grafana dashboards, PagerDuty alerts, log aggregation | `feature/monitoring-setup` | 3.6 | ⬜ Pending |
+| 3.10 | Cost tracking: token usage, compute, storage, cost per resolution | `feature/cost-tracking` | 3.9 | ⬜ Pending |
+| 3.11 | Production launch | `feature/prod-launch` | 3.10 | ⬜ Pending |
+
+## Phase 4: Enhancement (Months 4-6)
+
+| Row | Sub-task | Branch Name | Predecessor | Status |
+|-----|----------|-------------|-------------|--------|
+| 4.1 | Multi-language: ES, FR, DE, JA | `feature/i18n` | 3.11 | ⬜ Pending |
+| 4.2 | Voice support: transcription + agent processing | `feature/voice-support` | 3.11 | ⬜ Pending |
+| 4.3 | Proactive support: predictive from telemetry | `feature/proactive-support` | 3.11 | ⬜ Pending |
+| 4.4 | Advanced actions: provisioning, config deployment, DB mutations | `feature/advanced-actions` | 3.11 | ⬜ Pending |
+| 4.5 | Additional channels: Slack, Teams, Discord, Social | `feature/extra-channels` | 3.11 | ⬜ Pending |
+| 4.6 | Multi-cloud optimization: cost, latency, data residency | `feature/multicloud-optimization` | 3.11 | ⬜ Pending |
+
+---
+
+## Branch Naming Convention
+- Format: `feature/<kebab-case-description>`
+- Base branch: `development`
+- One sub-task = one branch
+- Do not start a row whose predecessor is still open (status ≠ Completed ✅)
+
+## Status Values
+- ⬜ Pending - Not started
+- 🔄 In Progress - Actively working
+- 👀 In Review - PR open, awaiting review
+- ✅ Completed - Merged to development
+- ❌ Blocked - Waiting on predecessor or external dependency
+
+## Update Rule
+Set the row to `Completed ✅` only after that sub-task has merged to `development`.
