@@ -42,10 +42,11 @@ class BaseRepository(Generic[T]):
             result = await session.execute(stmt)
             return result.scalars().all()
 
-    async def create(self, **kwargs: Any) -> T:
+    async def create(self, entity: T | None = None, **kwargs: Any) -> T:
         """Create a new entity."""
         async with db_manager.session() as session:
-            entity = self.model_class(**kwargs)
+            if entity is None:
+                entity = self.model_class(**kwargs)
             session.add(entity)
             await session.commit()
             await session.refresh(entity)
