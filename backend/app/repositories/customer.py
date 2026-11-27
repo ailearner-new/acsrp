@@ -2,6 +2,8 @@
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+from typing import List, Optional, Tuple
+from uuid import UUID
 
 from backend.app.models.customer import Customer
 from backend.app.repositories.base import BaseRepository
@@ -14,12 +16,13 @@ class CustomerRepository(BaseRepository[Customer]):
     def __init__(self):
         super().__init__(Customer)
 
-    async def get_by_email(self, email: str, *, tenant_id: str | None = None) -> Optional[Customer]:
-        """Get customer by email."""
+    async def get_by_email(self, tenant_id: UUID, email: str) -> Optional[Customer]:
+        """Get customer by email for a specific tenant."""
         async with db_manager.session() as session:
-            stmt = select(Customer).where(Customer.email == email)
-            if tenant_id is not None:
-                stmt = stmt.where(Customer.tenant_id == tenant_id)
+            stmt = select(Customer).where(
+                Customer.email == email,
+                Customer.tenant_id == tenant_id
+            )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
@@ -38,3 +41,28 @@ class CustomerRepository(BaseRepository[Customer]):
             stmt = select(func.count()).select_from(Customer).where(Customer.tier == tier, Customer.tenant_id == tenant_id)
             result = await session.execute(stmt)
             return result.scalar_one()
+
+    async def list_customers(self, filters: dict, limit: int = 50, offset: int = 0) -> Tuple[List[Customer], int]:
+        """List customers with filters and pagination."""
+        async with db_manager.session() as session:
+            stmt = select(Customer)
+            count_stmt = select(func.count()).select_from(Customer)
+
+            if "email" in filters:
+                stmt = stmt.where(Customer.email.ilike(f"%{filters['email']}%"))
+                count_stmt = count_stmt.where(Customer.email.ilike(f"%{filters['email']}%"))
+            if "tier" in filters:
+                stmt = stmt.where(Customer.tier == filters["tier"])
+                count_stmt = count_stmt.where(Customer.tier == filters["tier"])
+            if "organization" in filters:
+                stmt = stmt.where(Customer.organization.ilike(f"%{filters['organization']}%"))
+                count_stmt = count_stmt.where(Customer.organization.ilike(f"%{filters['organization']}%"))
+
+            stmt = stmt.order_by(Customer.created_at.desc()).limit(limit).offset(offset)
+            result = await session.execute(stmt)
+            customers = result.scalars().all()
+
+            count_result = await session.execute(count_stmt)
+            total = count_result.scalar_one()
+
+            return list(customers), total
