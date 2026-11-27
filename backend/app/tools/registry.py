@@ -318,8 +318,13 @@ def create_registry(
     registry = ToolRegistry(policies=policies or [])
 
     if with_defaults:
-        for tool_def in _load_default_tools():
-            registry.register_tool(tool_def, _create_mock_executor(tool_def))
+        # Register read-only tools
+        from backend.app.tools.read_only import register_tools as register_read_only
+        register_read_only(registry)
+
+        # Register write tools
+        from backend.app.tools.write_tools import register_tools as register_write
+        register_write(registry)
 
     return registry
 
