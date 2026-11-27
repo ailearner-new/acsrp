@@ -2,6 +2,8 @@
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+from typing import Optional
+from uuid import UUID
 
 from backend.app.models.user import User
 from backend.app.repositories.base import BaseRepository
@@ -14,12 +16,13 @@ class UserRepository(BaseRepository[User]):
     def __init__(self):
         super().__init__(User)
 
-    async def get_by_email(self, email: str, *, tenant_id: str | None = None) -> Optional[User]:
-        """Get user by email."""
+    async def get_by_email(self, tenant_id: UUID, email: str) -> Optional[User]:
+        """Get user by email for a specific tenant."""
         async with db_manager.session() as session:
-            stmt = select(User).where(User.email == email)
-            if tenant_id is not None:
-                stmt = stmt.where(User.tenant_id == tenant_id)
+            stmt = select(User).where(
+                User.email == email,
+                User.tenant_id == tenant_id
+            )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 

@@ -2,12 +2,14 @@
 
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.app.core.middleware import require_role
 from backend.app.repositories.ticket import TicketRepository
 from backend.app.repositories.customer import CustomerRepository
+from backend.app.repositories.user import UserRepository
 from backend.app.schemas.ticket import (
     TicketIngestRequest,
     TicketIngestResponse,
@@ -16,6 +18,10 @@ from backend.app.schemas.ticket import (
     TicketMessageResponse,
     AgentActionRequest,
     AgentActionResponse,
+    TicketUpdateRequest,
+    TicketAssignRequest,
+    TicketMessageCreateRequest,
+    TicketMessageCreateResponse,
 )
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
@@ -261,4 +267,182 @@ async def list_tickets(
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.patch(
+    "/{ticket_id}",
+    response_model=TicketResponse,
+    summary="Update ticket details",
+)
+async def update_ticket(
+    ticket_id: UUID,
+    request: TicketUpdateRequest,
+    current_user: dict = Depends(require_role("SUPER_ADMIN", "TENANT_ADMIN", "SUPPORT_MANAGER", "TIER1_AGENT", "TIER2_ENGINEER")),
+) -> TicketResponse:
+    """
+    Update ticket metadata (status, severity, category, etc.).
+
+    Only provided fields will be updated.
+    """
+    ticket_repo = TicketRepository()
+    ticket = await ticket_repo.get_by_id(ticket_id)
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found",
+        )
+
+    # Update fields if provided
+    update_data = request.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if hasattr(ticket, key):
+            setattr(ticket, key, value)
+
+    await ticket_repo.update(ticket_id, **update_data)
+
+    # Refresh ticket
+    ticket = await ticket_repo.get_by_id(ticket_id)
+
+    return TicketResponse(
+        ticket_id=ticket.id,
+        tenant_id=ticket.tenant_id,
+        customer_id=ticket.customer_id,
+        assigned_agent_id=ticket.assigned_agent_id,
+        channel=ticket.channel,
+        external_ref_id=ticket.external_ref_id,
+        subject=ticket.subject,
+        status=ticket.status,
+        severity=ticket.severity,
+        category=ticket.category,
+        subcategory=ticket.subcategory,
+        sentiment_score=float(ticket.sentiment_score) if ticket.sentiment_score else None,
+        confidence_score=float(ticket.confidence_score) if ticket.confidence_score else None,
+        is_autonomous_resolved=ticket.is_autonomous_resolved,
+        resolution_summary=ticket.resolution_summary,
+        created_at=ticket.created_at,
+        updated_at=ticket.updated_at,
+    )
+
+
+@router.post(
+    "/{ticket_id}/assign",
+    response_model=TicketResponse,
+    summary="Assign ticket to an agent",
+)
+async def assign_ticket(
+    ticket_id: UUID,
+    request: TicketAssignRequest,
+    current_user: dict = Depends(require_role("SUPER_ADMIN", "TENANT_ADMIN", "SUPPORT_MANAGER", "TIER1_AGENT", "TIER2_ENGINEER")),
+) -> TicketResponse:
+    """
+    Assign a ticket to a specific agent.
+
+    Only agents and managers can assign tickets.
+    """
+    ticket_repo = TicketRepository()
+    user_repo = UserRepository()
+
+    ticket = await ticket_repo.get_by_id(ticket_id)
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found",
+        )
+
+    # Verify agent exists and belongs to same tenant
+    agent = await user_repo.get_by_id(request.agent_id)
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found",
+        )
+
+    if agent.tenant_id != ticket.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agent must belong to the same tenant as the ticket",
+        )
+
+    # Assign ticket
+    await ticket_repo.update(ticket_id, assigned_agent_id=request.agent_id)
+
+    # Refresh ticket
+    ticket = await ticket_repo.get_by_id(ticket_id)
+
+    return TicketResponse(
+        ticket_id=ticket.id,
+        tenant_id=ticket.tenant_id,
+        customer_id=ticket.customer_id,
+        assigned_agent_id=ticket.assigned_agent_id,
+        channel=ticket.channel,
+        external_ref_id=ticket.external_ref_id,
+        subject=ticket.subject,
+        status=ticket.status,
+        severity=ticket.severity,
+        category=ticket.category,
+        subcategory=ticket.subcategory,
+        sentiment_score=float(ticket.sentiment_score) if ticket.sentiment_score else None,
+        confidence_score=float(ticket.confidence_score) if ticket.confidence_score else None,
+        is_autonomous_resolved=ticket.is_autonomous_resolved,
+        resolution_summary=ticket.resolution_summary,
+        created_at=ticket.created_at,
+        updated_at=ticket.updated_at,
+    )
+
+
+@router.post(
+    "/{ticket_id}/messages",
+    response_model=TicketMessageCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a message to a ticket",
+)
+async def add_ticket_message(
+    ticket_id: UUID,
+    request: TicketMessageCreateRequest,
+    current_user: dict = Depends(require_role("SUPER_ADMIN", "TENANT_ADMIN", "SUPPORT_MANAGER", "TIER1_AGENT", "TIER2_ENGINEER")),
+) -> TicketMessageCreateResponse:
+    """
+    Add a new message to a ticket (agent reply, system message, etc.).
+
+    The message will be broadcast to WebSocket subscribers in real-time.
+    """
+    ticket_repo = TicketRepository()
+
+    ticket = await ticket_repo.get_by_id(ticket_id)
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found",
+        )
+
+    from backend.app.models.ticket import TicketMessage
+
+    message = TicketMessage(
+        ticket_id=ticket_id,
+        tenant_id=ticket.tenant_id,
+        sender_type=request.sender_type,
+        sender_id=request.sender_id,
+        content=request.content,
+        cleaned_content=request.cleaned_content,
+        attachments=request.attachments,
+        metadata=request.metadata,
+    )
+
+    await ticket_repo.add_message(message)
+
+    # Broadcast to WebSocket subscribers
+    from backend.app.api.v1.ws import broadcast_new_message
+    await broadcast_new_message(ticket_id, {
+        "message_id": str(message.id),
+        "sender_type": message.sender_type.value,
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+    })
+
+    return TicketMessageCreateResponse(
+        message_id=message.id,
+        ticket_id=ticket_id,
+        created_at=message.created_at,
     )

@@ -105,3 +105,88 @@ class AgentActionResponse(BaseModel):
 
     status: Literal["applied", "rejected"]
     message_id: Optional[UUID] = None
+
+
+class TicketUpdateRequest(BaseModel):
+    """Request schema for updating a ticket."""
+
+    subject: Optional[str] = Field(None, max_length=500)
+    status: Optional[TicketStatus] = None
+    severity: Optional[SeverityLevel] = None
+    category: Optional[IssueCategory] = None
+    subcategory: Optional[str] = None
+    sentiment_score: Optional[float] = Field(None, ge=-1.0, le=1.0)
+    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    is_autonomous_resolved: Optional[bool] = None
+    resolution_summary: Optional[str] = None
+
+
+class TicketAssignRequest(BaseModel):
+    """Request schema for assigning a ticket to an agent."""
+
+    agent_id: UUID
+
+
+class TicketMessageCreateRequest(BaseModel):
+    """Request schema for adding a message to a ticket."""
+
+    sender_type: SenderType
+    sender_id: str
+    content: str
+    cleaned_content: Optional[str] = None
+    attachments: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TicketMessageCreateResponse(BaseModel):
+    """Response schema for adding a message."""
+
+    message_id: UUID
+    ticket_id: UUID
+    created_at: datetime
+
+
+# WebSocket message schemas
+class WSConnectMessage(BaseModel):
+    """WebSocket connection message."""
+
+    type: Literal["subscribe"]
+    ticket_id: str
+
+
+class WSMessage(BaseModel):
+    """Base WebSocket message."""
+
+    type: str
+    payload: Dict[str, Any]
+
+
+class WSNewMessagePayload(BaseModel):
+    """Payload for NEW_MESSAGE event."""
+
+    message_id: UUID
+    sender_type: SenderType
+    content: str
+    created_at: datetime
+
+
+class WSStateUpdatePayload(BaseModel):
+    """Payload for STATE_UPDATE event."""
+
+    intent: Optional[str] = None
+    severity: Optional[SeverityLevel] = None
+    confidence_score: Optional[float] = None
+    retrieved_docs: Optional[List[Dict[str, Any]]] = None
+    proposed_actions: Optional[List[Dict[str, Any]]] = None
+    draft_response: Optional[str] = None
+    next_node: Optional[str] = None
+
+
+class WSAgentActionPayload(BaseModel):
+    """Payload for agent_action client message."""
+
+    action_id: str
+    action: Literal["accept", "edit", "reject"]
+    suggestion_id: str
+    edited_content: Optional[str] = None
+    edited_actions: Optional[List[Dict[str, Any]]] = None
