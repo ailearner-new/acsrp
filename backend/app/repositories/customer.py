@@ -8,6 +8,7 @@ from uuid import UUID
 from backend.app.models.customer import Customer
 from backend.app.repositories.base import BaseRepository
 from backend.app.models.enums import CustomerTier
+from backend.app.core.database import db_manager
 
 
 class CustomerRepository(BaseRepository[Customer]):
@@ -42,12 +43,22 @@ class CustomerRepository(BaseRepository[Customer]):
             result = await session.execute(stmt)
             return result.scalar_one()
 
-    async def list_customers(self, filters: dict, limit: int = 50, offset: int = 0) -> Tuple[List[Customer], int]:
-        """List customers with filters and pagination."""
+    async def list_customers(self, filters: dict, limit: int = 50, offset: int = 0, *, tenant_id: UUID | None = None) -> Tuple[List[Customer], int]:
+        """List customers with filters and pagination.
+
+        Args:
+            filters: Filter criteria (email, tier, organization)
+            limit: Maximum number of results
+            offset: Pagination offset
+            tenant_id: Optional tenant filter for multi-tenancy
+        """
         async with db_manager.session() as session:
             stmt = select(Customer)
             count_stmt = select(func.count()).select_from(Customer)
 
+            if tenant_id is not None:
+                stmt = stmt.where(Customer.tenant_id == tenant_id)
+                count_stmt = count_stmt.where(Customer.tenant_id == tenant_id)
             if "email" in filters:
                 stmt = stmt.where(Customer.email.ilike(f"%{filters['email']}%"))
                 count_stmt = count_stmt.where(Customer.email.ilike(f"%{filters['email']}%"))
