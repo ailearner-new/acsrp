@@ -18,6 +18,7 @@ from backend.app.models.customer import Customer
 from backend.app.models.ticket import Ticket, TicketMessage
 from backend.app.models.action import ActionAudit
 from backend.app.models.case import ResolvedCase
+from backend.app.models.article import KnowledgeArticle
 
 __all__ = [
     # Base
@@ -43,4 +44,5 @@ __all__ = [
     "TicketMessage",
     "ActionAudit",
     "ResolvedCase",
+    "KnowledgeArticle",
 ]

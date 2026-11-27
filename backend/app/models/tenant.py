@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.app.models.user import User
     from backend.app.models.customer import Customer
     from backend.app.models.ticket import Ticket
+    from backend.app.models.article import KnowledgeArticle
 
 
 class Tenant(Base, IDMixin, TimestampMixin):
@@ -26,6 +27,9 @@ class Tenant(Base, IDMixin, TimestampMixin):
     users: Mapped[list["User"]] = relationship("User", back_populates="tenant", lazy="dynamic")
     customers: Mapped[list["Customer"]] = relationship("Customer", back_populates="tenant", lazy="dynamic")
     tickets: Mapped[list["Ticket"]] = relationship("Ticket", back_populates="tenant", lazy="dynamic")
+    knowledge_articles: Mapped[list["KnowledgeArticle"]] = relationship(
+        "KnowledgeArticle", back_populates="tenant", lazy="dynamic"
+    )
 
     def __repr__(self) -> str:
         return f"<Tenant(id={self.id}, name={self.name}, domain={self.domain})>"
