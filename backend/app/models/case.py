@@ -1,5 +1,6 @@
 """Resolved case model for episodic memory."""
 
+import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, JSON, String, Text, ForeignKey, Index
