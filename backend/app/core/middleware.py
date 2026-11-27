@@ -1,5 +1,6 @@
-"""Request ID, authentication, and rate limiting middleware."""
+"""Request ID, authentication, rate limiting, and audit middleware."""
 
+import json
 import time
 import uuid
 from contextvars import ContextVar
@@ -299,3 +300,98 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         except Exception:
             # If Redis is unavailable, fail open (allow request)
             return await call_next(request)
+
+
+# =====================================================================
+# Audit Logging
+# =====================================================================
+
+
+class AuditMiddleware(BaseHTTPMiddleware):
+    """Middleware that logs audit trails for all requests."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        from backend.app.core.config import settings
+        self.excluded_paths = {
+            "/api/v1/health",
+            "/docs",
+            "/openapi.json",
+            "/",
+        }
+
+    def _should_audit(self, path: str) -> bool:
+        """Check if path should be audited."""
+        return path not in self.excluded_paths
+
+    def _get_user_info(self, request: Request) -> dict:
+        """Extract user information from request."""
+        user = getattr(request.state, "user", None)
+        if user:
+            return {
+                "user_id": user.get("sub"),
+                "role": user.get("role"),
+            }
+        return {"user_id": None, "role": None}
+
+    def _get_client_ip(self, request: Request) -> str:
+        """Extract client IP address."""
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        path = request.url.path
+
+        if not self._should_audit(path):
+            return await call_next(request)
+
+        request_id = get_request_id()
+        start_time = time.perf_counter()
+        user_info = self._get_user_info(request)
+        client_ip = self._get_client_ip(request)
+        method = request.method
+
+        # Log request audit entry
+        from backend.app.core.logging import get_logger
+        audit_logger = get_logger("audit")
+
+        try:
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Log successful response
+            audit_logger.info(
+                "request_audit",
+                request_id=request_id,
+                method=method,
+                path=path,
+                status_code=response.status_code,
+                duration_ms=round(duration_ms, 2),
+                user_id=user_info["user_id"],
+                role=user_info["role"],
+                client_ip=client_ip,
+                event_type="response",
+            )
+
+            return response
+
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Log exception
+            audit_logger.error(
+                "request_audit_error",
+                request_id=request_id,
+                method=method,
+                path=path,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                duration_ms=round(duration_ms, 2),
+                user_id=user_info["user_id"],
+                role=user_info["role"],
+                client_ip=client_ip,
+                event_type="error",
+            )
+            raise
