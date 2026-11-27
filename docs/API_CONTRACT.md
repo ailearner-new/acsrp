@@ -201,6 +201,115 @@ List customers with filtering and pagination.
 
 ---
 
+## Knowledge Article API
+
+### POST /api/v1/articles
+Create a new knowledge article.
+
+**Request:**
+```json
+{
+  "title": "string (max 500)",
+  "content": "string",
+  "source_url": "string (optional)",
+  "category": "ACCOUNT_ACCESS|BILLING_SUBSCRIPTION|FEATURE_HOW_TO|BASIC_TROUBLESHOOTING|ORDER_STATUS|TECHNICAL_BUG|API_ISSUE|INTEGRATION_PROBLEM|COMPLEX_BILLING_DISPUTE|FEATURE_REQUEST",
+  "access_level": "internal|public",
+  "metadata": {}
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "title": "string",
+  "content": "string",
+  "source_url": "string|null",
+  "category": "string|null",
+  "access_level": "string",
+  "is_active": true,
+  "chunk_count": 0,
+  "metadata": {},
+  "created_at": "ISO8601",
+  "updated_at": "ISO8601"
+}
+```
+
+**Roles:** `SUPER_ADMIN`, `TENANT_ADMIN`, `SUPPORT_MANAGER`
+
+### GET /api/v1/articles/{article_id}
+Get a knowledge article by ID.
+
+**Response (200):**
+Same as POST response (KnowledgeArticleResponse).
+
+**Errors:**
+- `404` - Knowledge article not found
+
+**Roles:** `SUPER_ADMIN`, `TENANT_ADMIN`, `SUPPORT_MANAGER`, `TIER1_AGENT`, `TIER2_ENGINEER`, `READ_ONLY`
+
+### PATCH /api/v1/articles/{article_id}
+Update a knowledge article.
+
+**Request:**
+```json
+{
+  "title": "string (optional)",
+  "content": "string (optional)",
+  "source_url": "string (optional)",
+  "category": "string (optional)",
+  "access_level": "internal|public (optional)",
+  "is_active": true,
+  "metadata": {} (optional)
+}
+```
+
+**Response (200):**
+Same as GET response (KnowledgeArticleResponse).
+
+**Roles:** `SUPER_ADMIN`, `TENANT_ADMIN`, `SUPPORT_MANAGER`
+
+### DELETE /api/v1/articles/{article_id}
+Delete a knowledge article.
+
+**Response:** `204 No Content`
+
+**Roles:** `SUPER_ADMIN`, `TENANT_ADMIN`, `SUPPORT_MANAGER`
+
+### GET /api/v1/articles/
+List knowledge articles with optional filters.
+
+**Query Parameters:**
+- `category` (optional) - Filter by category
+- `limit` (optional, default 50) - Number of results per page
+- `offset` (optional, default 0) - Pagination offset
+- `active_only` (optional, default true) - Show only active articles
+
+**Response (200):**
+```json
+{
+  "articles": [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "title": "string",
+      "source_url": "string|null",
+      "category": "string|null",
+      "chunk_count": 12,
+      "updated_at": "ISO8601"
+    }
+  ],
+  "total": 100,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Roles:** `SUPER_ADMIN`, `TENANT_ADMIN`, `SUPPORT_MANAGER`, `TIER1_AGENT`, `TIER2_ENGINEER`, `READ_ONLY`
+
+---
+
 ## Agent Assist (Real-time)
 
 ### WS /api/v1/ws/tickets/{ticket_id}
