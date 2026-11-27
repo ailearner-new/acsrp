@@ -1,8 +1,10 @@
-"""Request ID and authentication middleware."""
+"""Request ID, authentication, and rate limiting middleware."""
 
+import time
 import uuid
 from contextvars import ContextVar
 from datetime import datetime, timedelta
+from typing import Optional, Tuple
 
 from fastapi import Request, Response, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -167,3 +169,133 @@ class RoleRequired:
 def require_role(*allowed_roles: str):
     """FastAPI dependency factory that requires specific roles."""
     return RoleRequired(list(allowed_roles))
+
+
+# =====================================================================
+# Rate Limiting
+# =====================================================================
+
+
+def parse_rate_limit(rate_limit: str) -> Tuple[int, int]:
+    """Parse rate limit string like '60/minute' into (requests, window_seconds)."""
+    parts = rate_limit.split("/")
+    if len(parts) != 2:
+        return 60, 60  # default: 60 requests per minute
+    try:
+        requests = int(parts[0])
+    except ValueError:
+        requests = 60
+    window_str = parts[1].lower()
+    if window_str in ("second", "seconds"):
+        window = 1
+    elif window_str in ("minute", "minutes"):
+        window = 60
+    elif window_str in ("hour", "hours"):
+        window = 3600
+    elif window_str in ("day", "days"):
+        window = 86400
+    else:
+        window = 60
+    return requests, window
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Middleware that enforces rate limits using Redis."""
+
+    def __init__(self, app, redis_url: str = "", default_limit: str = "60/minute"):
+        super().__init__(app)
+        self.redis_url = redis_url
+        self.default_limit = default_limit
+        self._redis: Optional[redis.Redis] = None
+
+    async def _get_redis(self) -> redis.Redis:
+        """Get or create Redis client."""
+        if self._redis is None:
+            import redis.asyncio as redis
+            self._redis = redis.from_url(self.redis_url, decode_responses=True)
+        return self._redis
+
+    async def _get_limit_for_request(self, request: Request) -> Tuple[int, int]:
+        """Determine rate limit based on user role."""
+        from backend.app.core.config import settings
+
+        user = getattr(request.state, "user", None)
+        if user:
+            role = user.get("role", "").upper()
+            if "ADMIN" in role:
+                return parse_rate_limit(settings.rate_limit_admin)
+            return parse_rate_limit(settings.rate_limit_authenticated)
+        return parse_rate_limit(settings.rate_limit_default)
+
+    def _get_client_identifier(self, request: Request) -> str:
+        """Get unique identifier for rate limiting (user ID or IP)."""
+        user = getattr(request.state, "user", None)
+        if user and user.get("sub"):
+            return f"user:{user['sub']}"
+        # Fallback to IP
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            ip = forwarded.split(",")[0].strip()
+        else:
+            ip = request.client.host if request.client else "unknown"
+        return f"ip:{ip}"
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Skip rate limiting for health and docs
+        path = request.url.path
+        if path in ["/api/v1/health", "/docs", "/openapi.json", "/"]:
+            return await call_next(request)
+
+        try:
+            redis_client = await self._get_redis()
+            identifier = self._get_client_identifier(request)
+            requests, window = await self._get_limit_for_request(request)
+
+            # Use sliding window with Redis sorted set
+            now = time.time()
+            window_start = now - window
+            key = f"ratelimit:{identifier}"
+
+            pipe = redis_client.pipeline()
+            # Remove expired entries
+            pipe.zremrangebyscore(key, 0, window_start)
+            # Count current requests
+            pipe.zcard(key)
+            # Add current request
+            pipe.zadd(key, {str(now): now})
+            # Set expiry
+            pipe.expire(key, window + 1)
+            results = await pipe.execute()
+
+            current_count = results[1] + 1  # +1 for the request we just added
+
+            if current_count > requests:
+                # Rate limited
+                retry_after = window
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "type": "https://api.clouddesk.io/errors/rate-limited",
+                        "title": "Rate Limit Exceeded",
+                        "status": 429,
+                        "detail": f"Rate limit exceeded. Try again in {retry_after} seconds.",
+                        "instance": str(request.url),
+                    },
+                    headers={
+                        "Retry-After": str(retry_after),
+                        "X-RateLimit-Limit": str(requests),
+                        "X-RateLimit-Remaining": "0",
+                        "X-RateLimit-Reset": str(int(now + window)),
+                    },
+                )
+
+            # Success - add rate limit headers
+            response = await call_next(request)
+            response.headers["X-RateLimit-Limit"] = str(requests)
+            response.headers["X-RateLimit-Remaining"] = str(max(0, requests - current_count))
+            response.headers["X-RateLimit-Reset"] = str(int(now + window))
+            return response
+
+        except Exception:
+            # If Redis is unavailable, fail open (allow request)
+            return await call_next(request)
