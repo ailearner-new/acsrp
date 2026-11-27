@@ -87,6 +87,120 @@ Get conversation history.
 
 ---
 
+## Customer API
+
+### POST /api/v1/customers
+Create a new customer in the system.
+
+**Request:**
+```json
+{
+  "external_id": "string (optional)",
+  "email": "string (email)",
+  "full_name": "string (optional)",
+  "organization": "string (optional)",
+  "tier": "STANDARD|PREMIUM|ENTERPRISE",
+  "metadata": {}
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "external_id": "string|null",
+  "email": "string",
+  "full_name": "string|null",
+  "organization": "string|null",
+  "tier": "STANDARD|PREMIUM|ENTERPRISE",
+  "metadata": {},
+  "created_at": "ISO8601",
+  "updated_at": "ISO8601"
+}
+```
+
+### GET /api/v1/customers/{customer_id}
+Get customer details by ID.
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "external_id": "string|null",
+  "email": "string",
+  "full_name": "string|null",
+  "organization": "string|null",
+  "tier": "STANDARD|PREMIUM|ENTERPRISE",
+  "metadata": {},
+  "created_at": "ISO8601",
+  "updated_at": "ISO8601"
+}
+```
+
+**Errors:**
+- `404` - Customer not found
+
+### PATCH /api/v1/customers/{customer_id}
+Update customer details (partial update).
+
+**Request:**
+```json
+{
+  "external_id": "string (optional)",
+  "full_name": "string (optional)",
+  "organization": "string (optional)",
+  "tier": "STANDARD|PREMIUM|ENTERPRISE (optional)",
+  "metadata": {} (optional)
+}
+```
+
+**Response (200):**
+Same as GET response (CustomerResponse).
+
+**Errors:**
+- `404` - Customer not found
+
+### GET /api/v1/customers/
+List customers with filtering and pagination.
+
+**Query Parameters:**
+- `email` (optional) - Filter by email (partial match)
+- `tier` (optional) - Filter by tier
+- `organization` (optional) - Filter by organization
+- `limit` (optional, default 50) - Number of results per page
+- `offset` (optional, default 0) - Pagination offset
+
+**Response (200):**
+```json
+{
+  "customers": [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "external_id": "string|null",
+      "email": "string",
+      "full_name": "string|null",
+      "organization": "string|null",
+      "tier": "STANDARD|PREMIUM|ENTERPRISE",
+      "metadata": {},
+      "created_at": "ISO8601",
+      "updated_at": "ISO8601"
+    }
+  ],
+  "total": 100,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Errors:**
+- `401` - Unauthorized
+- `403` - Forbidden
+
+---
+
 ## Agent Assist (Real-time)
 
 ### WS /api/v1/ws/tickets/{ticket_id}

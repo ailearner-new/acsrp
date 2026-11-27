@@ -17,6 +17,16 @@ from backend.app.schemas.customer import (
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
 
+def get_tenant_id_from_user(current_user: dict) -> UUID:
+    """Extract and convert tenant_id from JWT token to UUID."""
+    tenant_id = current_user.get("tenant_id")
+    if tenant_id is None:
+        return UUID("00000000-0000-0000-0000-000000000000")
+    if isinstance(tenant_id, str):
+        return UUID(tenant_id)
+    return tenant_id
+
+
 @router.post(
     "/",
     response_model=CustomerResponse,
@@ -34,9 +44,12 @@ async def create_customer(
     """
     customer_repo = CustomerRepository()
 
+    # Get tenant_id from JWT token
+    tenant_id = get_tenant_id_from_user(current_user)
+    user_role = current_user.get("role")
+
     # Check if customer with email already exists for this tenant
-    tenant_id = current_user.get("tenant_id")
-    if tenant_id and current_user.get("role") != "SUPER_ADMIN":
+    if tenant_id and user_role != "SUPER_ADMIN":
         existing = await customer_repo.get_by_email(tenant_id, request.email)
         if existing:
             raise HTTPException(
@@ -47,7 +60,7 @@ async def create_customer(
     from backend.app.models.customer import Customer
 
     customer = Customer(
-        tenant_id=tenant_id or UUID("00000000-0000-0000-0000-000000000000"),
+        tenant_id=tenant_id,
         external_id=request.external_id,
         email=request.email,
         full_name=request.full_name,
@@ -83,9 +96,18 @@ async def get_customer(
 ) -> CustomerResponse:
     """
     Get detailed information about a specific customer.
+
+    Ensures tenant isolation - users can only access customers in their tenant.
     """
     customer_repo = CustomerRepository()
-    customer = await customer_repo.get_by_id(customer_id)
+    tenant_id = get_tenant_id_from_user(current_user)
+    user_role = current_user.get("role")
+
+    # Build tenant filter - SUPER_ADMIN can access any tenant
+    if user_role == "SUPER_ADMIN":
+        customer = await customer_repo.get_by_id(customer_id)
+    else:
+        customer = await customer_repo.get_by_id(customer_id, tenant_id=tenant_id)
 
     if not customer:
         raise HTTPException(
@@ -121,9 +143,17 @@ async def update_customer(
     Update customer information.
 
     Only provided fields will be updated.
+    Ensures tenant isolation - users can only update customers in their tenant.
     """
     customer_repo = CustomerRepository()
-    customer = await customer_repo.get_by_id(customer_id)
+    tenant_id = get_tenant_id_from_user(current_user)
+    user_role = current_user.get("role")
+
+    # Build tenant filter - SUPER_ADMIN can access any tenant
+    if user_role == "SUPER_ADMIN":
+        customer = await customer_repo.get_by_id(customer_id)
+    else:
+        customer = await customer_repo.get_by_id(customer_id, tenant_id=tenant_id)
 
     if not customer:
         raise HTTPException(
@@ -146,7 +176,10 @@ async def update_customer(
     await customer_repo.update(customer_id, **request.model_dump(exclude_unset=True))
 
     # Refresh customer
-    customer = await customer_repo.get_by_id(customer_id)
+    if user_role == "SUPER_ADMIN":
+        customer = await customer_repo.get_by_id(customer_id)
+    else:
+        customer = await customer_repo.get_by_id(customer_id, tenant_id=tenant_id)
 
     return CustomerResponse(
         id=customer.id,
@@ -179,8 +212,11 @@ async def list_customers(
     List customers with optional filtering and pagination.
 
     Supports filtering by email, tier, and organization.
+    Ensures tenant isolation - users can only see customers in their tenant.
     """
     customer_repo = CustomerRepository()
+    tenant_id = get_tenant_id_from_user(current_user)
+    user_role = current_user.get("role")
 
     filters = {}
     if email:
@@ -190,7 +226,11 @@ async def list_customers(
     if organization:
         filters["organization"] = organization
 
-    customers, total = await customer_repo.list_customers(filters, limit=limit, offset=offset)
+    # SUPER_ADMIN can see all customers; others see only their tenant's customers
+    if user_role != "SUPER_ADMIN":
+        customers, total = await customer_repo.list_customers(filters, limit=limit, offset=offset, tenant_id=tenant_id)
+    else:
+        customers, total = await customer_repo.list_customers(filters, limit=limit, offset=offset)
 
     return CustomerListResponse(
         customers=[
