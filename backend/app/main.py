@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 
 from backend.app.core.config import settings
 from backend.app.core.logging import setup_logging, get_logger, log_request
+from backend.app.core.middleware import RequestIDMiddleware
+from backend.app.api.v1 import api_v1_router
 
 
 @asynccontextmanager
@@ -31,6 +33,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Request ID middleware (must be first to capture all requests)
+app.add_middleware(RequestIDMiddleware)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -48,8 +53,9 @@ if settings.trusted_hosts:
 # Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    import time
     start_time = time.perf_counter()
-    request_id = request.headers.get("X-Request-ID", "")
+    request_id = request.state.request_id
 
     response = await call_next(request)
 
@@ -65,8 +71,7 @@ async def log_requests(request: Request, call_next):
         request_id=request_id,
     )
 
-    # Add request ID to response headers
-    response.headers["X-Request-ID"] = request_id
+    # Request ID already added to response headers by RequestIDMiddleware
     return response
 
 
@@ -80,7 +85,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         method=request.method,
         error_type=type(exc).__name__,
         error_message=str(exc),
-        request_id=request.headers.get("X-Request-ID", ""),
+        request_id=request.state.request_id,
         exc_info=True,
     )
     return JSONResponse(
@@ -95,24 +100,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "version": settings.app_version,
-        "environment": settings.environment,
-    }
-
-
-@app.get("/health/ready")
-async def readiness_check():
-    """Readiness check endpoint."""
-    return {
-        "status": "ready",
-        "version": settings.app_version,
-    }
+# Include API v1 router
+app.include_router(api_v1_router)
 
 
 if __name__ == "__main__":
