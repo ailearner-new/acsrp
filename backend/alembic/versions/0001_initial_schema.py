@@ -235,7 +235,6 @@ def upgrade() -> None:
         sa.Column('risk_level', sa.Enum('LOW', 'MEDIUM', 'HIGH', 'CRITICAL', name='action_risk_level', create_type=False), nullable=False),
         sa.Column('parameters', postgresql.JSONB, nullable=False),
         sa.Column('status', sa.Enum('PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXECUTING', 'SUCCESS', 'FAILED', 'ROLLED_BACK', name='action_status', create_type=False), nullable=False, server_default='PENDING_APPROVAL'),
-        sa.Column('parameters', postgresql.JSONB, nullable=False),
         sa.Column('requested_by', sa.String(100), nullable=False),
         sa.Column('approved_by', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('approval_comment', sa.Text, nullable=True),

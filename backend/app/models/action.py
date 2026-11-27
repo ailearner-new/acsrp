@@ -1,5 +1,7 @@
 """Action audit model."""
 
+import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, JSON, String, Text, ForeignKey
