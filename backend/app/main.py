@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from backend.app.core.config import settings
 from backend.app.core.logging import setup_logging, get_logger, log_request
-from backend.app.core.middleware import RequestIDMiddleware, auth_middleware
+from backend.app.core.middleware import RequestIDMiddleware, auth_middleware, RateLimitMiddleware
 from backend.app.api.v1 import api_v1_router
 
 
@@ -38,6 +38,9 @@ app.add_middleware(RequestIDMiddleware)
 
 # Authentication middleware (JWT bearer token)
 app.add_middleware(auth_middleware)
+
+# Rate limiting middleware
+app.add_middleware(RateLimitMiddleware, redis_url=settings.redis_url)
 
 # CORS
 app.add_middleware(
