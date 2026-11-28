@@ -112,6 +112,8 @@ build/
 *token*
 *.kubeconfig
 
+# Test fixtures (contains test secrets)
+tests/unit/agents/test_secrets_fixture.py
 # Local development
 .local/
 *.local
