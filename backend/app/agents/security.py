@@ -3,14 +3,33 @@
 This module provides:
 1. Prompt injection detection and wrapping
 2. PII scrubbing and redaction
-3. Input validation for agent safety
-4. Integration with LangGraph workflow
+3. Secret scrubbing and leakage prevention
+4. Input validation for agent safety
+5. Integration with LangGraph workflow
 """
 
 from enum import Enum
 import re
+import os
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
+
+
+class ValidationIssueType(str, Enum):
+    """Types of validation issues that can be detected in output."""
+    SECRET_LEAK = "SECRET_LEAK"
+    PII_EXPOSURE = "PII_EXPOSURE"
+    INTERNAL_URL = "INTERNAL_URL"
+
+
+@dataclass
+class ValidationIssue:
+    """A single validation issue found in the output."""
+    issue_type: ValidationIssueType
+    description: str
+    matched_content: str
+    severity: str  # "LOW", "MEDIUM", "HIGH", "CRITICAL"
+    position: Optional[int] = None
 
 
 class PIIType(str, Enum):
@@ -47,6 +66,124 @@ DEFAULT_PII_RULES: List[PIIRedactionRule] = [
     PIIRedactionRule(
         pii_type=PIIType.SSN,
         pattern=r'\b\d{3}-\d{2}-\d{4}\b',
+    ),
+]
+
+
+class SecretType(str, Enum):
+    """Types of secrets that can be scrubbed from output."""
+    API_KEY = "API_KEY"
+    SECRET_KEY = "SECRET_KEY"
+    ACCESS_TOKEN = "ACCESS_TOKEN"
+    BEARER_TOKEN = "BEARER_TOKEN"
+    AUTH_HEADER = "AUTH_HEADER"
+    PASSWORD = "PASSWORD"
+    PRIVATE_KEY = "PRIVATE_KEY"
+    JWT_SECRET = "JWT_SECRET"
+    DB_URL = "DB_URL"
+    CONNECTION_STRING = "CONNECTION_STRING"
+    GITHUB_PAT = "GITHUB_PAT"
+    SLACK_BOT_TOKEN = "SLACK_BOT_TOKEN"
+    SLACK_USER_TOKEN = "SLACK_USER_TOKEN"
+    GITLAB_PAT = "GITLAB_PAT"
+    AWS_SECRET = "AWS_SECRET"
+
+
+@dataclass
+class SecretRedactionRule:
+    """Rule for redacting secrets from text."""
+    secret_type: SecretType
+    pattern: str
+    replacement: str = "[REDACTED]"
+
+    def redact(self, text: str) -> str:
+        """Redact secrets from the given text."""
+        return re.sub(self.pattern, self.replacement, text)
+
+
+# Default secret redaction rules - excludes test/fake values by default
+_DISABLE_FAKE_EXCLUSION = os.getenv("DISABLE_FAKE_EXCLUSION", "false").lower() == "true"
+
+if _DISABLE_FAKE_EXCLUSION:
+    EXCLUDE_FAKE = ""
+else:
+    EXCLUDE_FAKE = r"(?!.*(?:FAKE|REDACTED|fake|redacted))"
+
+DEFAULT_SECRET_RULES: List[SecretRedactionRule] = [
+    # API keys
+    SecretRedactionRule(
+        secret_type=SecretType.API_KEY,
+        pattern=rf'(?i)(api[_-]?key|apikey)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[a-zA-Z0-9_\-]{{20,}}["\']?',
+    ),
+    SecretRedactionRule(
+        secret_type=SecretType.SECRET_KEY,
+        pattern=rf'(?i)(secret[_-]?key|secretkey)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[a-zA-Z0-9_\-]{{20,}}["\']?',
+    ),
+    SecretRedactionRule(
+        secret_type=SecretType.ACCESS_TOKEN,
+        pattern=rf'(?i)(access[_-]?token|accesstoken)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[a-zA-Z0-9_\-]{{20,}}["\']?',
+    ),
+    # Bearer tokens and auth headers
+    SecretRedactionRule(
+        secret_type=SecretType.BEARER_TOKEN,
+        pattern=rf'(?i)(bearer\s+){EXCLUDE_FAKE}[a-zA-Z0-9_\-\.]{{20,}}',
+    ),
+    SecretRedactionRule(
+        secret_type=SecretType.AUTH_HEADER,
+        pattern=rf'(?i)(authorization\s*[:=]\s*["\']?){EXCLUDE_FAKE}[a-zA-Z0-9_\-\.]{{20,}}',
+    ),
+    # Passwords
+    SecretRedactionRule(
+        secret_type=SecretType.PASSWORD,
+        pattern=rf'(?i)(password|passwd|pwd)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[^\s"\']{{8,}}["\']?',
+    ),
+    # Private keys
+    SecretRedactionRule(
+        secret_type=SecretType.PRIVATE_KEY,
+        pattern=rf'(?i)(private[_-]?key|privatekey)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[^\s"\']{{10,}}["\']?',
+    ),
+    # JWT secrets
+    SecretRedactionRule(
+        secret_type=SecretType.JWT_SECRET,
+        pattern=rf'(?i)(jwt[_-]?secret|jwtsecret)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[a-zA-Z0-9_\-]{{20,}}["\']?',
+    ),
+    # DB URLs and connection strings
+    SecretRedactionRule(
+        secret_type=SecretType.DB_URL,
+        pattern=rf'(?i)(database[_-]?url|db[_-]?url)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[^\s"\']{{10,}}["\']?',
+    ),
+    SecretRedactionRule(
+        secret_type=SecretType.CONNECTION_STRING,
+        pattern=rf'(?i)(connection[_-]?string|conn[_-]?str)\s*[:=]\s*["\']?{EXCLUDE_FAKE}[^\s"\']{{10,}}["\']?',
+    ),
+    # GitHub PAT
+    SecretRedactionRule(
+        secret_type=SecretType.GITHUB_PAT,
+        pattern=rf'{EXCLUDE_FAKE}ghp_[a-zA-Z0-9]{{36,}}',
+    ),
+    # Bare OpenAI/API keys starting with sk-
+    SecretRedactionRule(
+        secret_type=SecretType.API_KEY,
+        pattern=rf'(?i)sk-[a-zA-Z0-9]{{32,}}',
+    ),
+    # Slack tokens
+    SecretRedactionRule(
+        secret_type=SecretType.SLACK_BOT_TOKEN,
+        pattern=rf'{EXCLUDE_FAKE}xoxb-[a-zA-Z0-9\-]{{20,}}',
+    ),
+    SecretRedactionRule(
+        secret_type=SecretType.SLACK_USER_TOKEN,
+        pattern=rf'{EXCLUDE_FAKE}xoxp-[a-zA-Z0-9\-]{{20,}}',
+    ),
+    # GitLab PAT
+    SecretRedactionRule(
+        secret_type=SecretType.GITLAB_PAT,
+        pattern=rf'{EXCLUDE_FAKE}glpat-[a-zA-Z0-9\-]{{20,}}',
+    ),
+    # AWS secret access key
+    SecretRedactionRule(
+        secret_type=SecretType.AWS_SECRET,
+        pattern=rf'(?i)aws[_-]?secret[_-]?access[_-]?key\s*[:=]\s*["\']?{EXCLUDE_FAKE}[a-zA-Z0-9/+=]{{38,40}}["\']?',
     ),
 ]
 
@@ -148,6 +285,48 @@ def detect_prompt_injection(
     )
 
 
+def detect_secret_leakage(
+    text: str,
+    patterns: Optional[List[Tuple[str, str]]] = None,
+) -> List[ValidationIssue]:
+    """Detect secret/sensitive data leakage in text output.
+
+    Scans text for API keys, tokens, passwords, and other secrets that
+    should not be exposed to customers.
+
+    Args:
+        text: The text to scan for secrets
+        patterns: Optional custom pattern overrides (defaults to DEFAULT_SECRET_RULES)
+
+    Returns:
+        List of ValidationIssue objects for each secret found
+    """
+    if patterns is None:
+        patterns = [(rule.pattern, rule.secret_type.value) for rule in DEFAULT_SECRET_RULES]
+
+    issues: List[ValidationIssue] = []
+
+    for pattern, secret_type in patterns:
+        matches = re.finditer(pattern, text, re.IGNORECASE)
+        for match in matches:
+            matched = match.group(0)
+            # Avoid duplicate issues for the same position/location
+            is_duplicate = any(
+                issue.matched_content == matched and issue.issue_type.value == secret_type
+                for issue in issues
+            )
+            if not is_duplicate:
+                issues.append(ValidationIssue(
+                    issue_type=ValidationIssueType.SECRET_LEAK,
+                    description=f"Secret leakage detected: {secret_type}",
+                    matched_content=matched,
+                    severity="HIGH",
+                    position=match.start(),
+                ))
+
+    return issues
+
+
 def sanitize_input(
     text: str,
     detected_keywords: Optional[List[str]] = None,
@@ -177,10 +356,34 @@ def sanitize_input(
     return sanitized
 
 
+def scrub_secrets(
+    text: str,
+    rules: Optional[List[SecretRedactionRule]] = None,
+) -> str:
+    """Scrub secrets from text using the default or custom rules.
+
+    Args:
+        text: The text to scrub for secrets
+        rules: Optional custom redaction rules (defaults to DEFAULT_SECRET_RULES)
+
+    Returns:
+        Text with secrets redacted
+    """
+    if rules is None:
+        rules = DEFAULT_SECRET_RULES
+
+    sanitized = text
+    for rule in rules:
+        sanitized = rule.redact(sanitized)
+
+    return sanitized
+
+
 def wrap_user_input(
     user_input: str,
     strip_pii: bool = True,
     detect_injection: bool = True,
+    scrub_secrets_flag: bool = True,
 ) -> Dict[str, Any]:
     """Complete wrapper for user input with security preprocessing.
 
@@ -188,6 +391,7 @@ def wrap_user_input(
         user_input: Raw user input text
         strip_pii: Whether to redact PII from the input
         detect_injection: Whether to detect and flag injection attempts
+        scrub_secrets_flag: Whether to scrub secrets from the input
 
     Returns:
         Dictionary with sanitized input and security metadata
@@ -196,6 +400,7 @@ def wrap_user_input(
         "original_input": user_input,
         "sanitized_input": user_input,
         "pii_redacted": False,
+        "secrets_scrubbed": False,
         "injection_detected": False,
         "injection_type": None,
         "confidence": 0.0,
@@ -215,6 +420,16 @@ def wrap_user_input(
     if strip_pii:
         result["sanitized_input"] = sanitize_input(result["sanitized_input"])
         result["pii_redacted"] = True
+
+    # Step 3: Scrub secrets if enabled
+    if scrub_secrets_flag:
+        secrets_result = detect_secret_leakage(result["sanitized_input"])
+        if secrets_result:
+            result["secrets_scrubbed"] = True
+            # Apply secret scrubbing
+            result["sanitized_input"] = scrub_secrets(result["sanitized_input"])
+        else:
+            result["secrets_scrubbed"] = False
 
     return result
 
@@ -283,6 +498,11 @@ def get_pii_redaction_rules() -> List[PIIRedactionRule]:
     return DEFAULT_PII_RULES
 
 
+def get_secret_redaction_rules() -> List[SecretRedactionRule]:
+    """Get the default secret redaction rules."""
+    return DEFAULT_SECRET_RULES
+
+
 def get_injection_patterns() -> Dict[InjectionType, List[str]]:
     """Get the default injection detection patterns."""
     return INJECTION_PATTERNS
@@ -338,6 +558,16 @@ if __name__ == "__main__":
     print(f"  Sanitized: {wrapped4['sanitized_input']}")
     print(f"  PII redacted: {wrapped4['pii_redacted']}")
     print(f"  Injection detected: {wrapped4['injection_detected']}")
+    print()
+
+    # Test 5: Secret scrubbing
+    test5 = "My API key is sk-abc123def456ghij789klmnoqrstuv and my password is secret123"
+    wrapped5 = wrap_user_input(test5)
+    print(f"Test 5 - Secret scrubbing:")
+    print(f"  Original: {test5}")
+    print(f"  Sanitized: {wrapped5['sanitized_input']}")
+    print(f"  PII redacted: {wrapped5['pii_redacted']}")
+    print(f"  Secrets scrubbed: {wrapped5['secrets_scrubbed']}")
     print()
 
     print("=== All tests completed ===")
